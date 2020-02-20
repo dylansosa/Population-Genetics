@@ -26,7 +26,7 @@ while $t \geq$ 0.05:
 $$\Lambda(t) := \int^{t}_{s=0} \frac{1}{f(s)}ds$$
 $$= \int^{t=0.05}_{s=0}ds + \int^{t}_{s=0.05} \frac{1}{10}ds$$
 $$= s|^{0.05}_{0} + \frac{s}{10}|^{t}_{0.05}$$
-$$0.05 + \frac{t}{10} - 0.005$$
+$$=0.05 + \frac{t}{10} - 0.005$$
 $$= \frac{t}{10}+0.045$$
 while $t \leq$ 0.05:
 $$\Lambda(t) := \int^{t}_{s=0} \frac{1}{f(s)}ds$$
@@ -54,69 +54,66 @@ $$\square$$
 ## 3
 ## Genealogical Ancestral Process Simulator
 ```{r}
-failedTrajectories <- 0
-# Based on problem: init trajecotries that reach k == 1 before t == 20
-trajectories <- 1000
-L <- 200
-rho <- 0.002
-n = 10
-
 set.seed(420)
 # for rexp()
 
-for(i in seq(trajectories)){ # for each i simulation in trajectories
-  k <- n # init
-  genealogical.df <- data.frame(matrix(ncol = 1, nrow = 1e5))
-  # each simulation is a column, value is lineages of that simulation at time t 
-  # x is row, y is column
-  # k is # lineages
-  
-  genealogical.df$simLineages[1] <- k # init k in df
-  genealogical.df$t[1] <- 0 # init time in df
-  genealogical.df <- select(genealogical.df,t, simLineages)
-  j <- 2
-  # init where we start filling rows == row 2 bc row 1 has init values for the simulation
-  
-  oldTime <- 0
-  # print(i) testing
-  
-  while( k != 1 ){
-    # print('in while') testing
-    increaseLineageProb <- k * (rho/2) * (L-1) / ((k * (rho/2) * (L-1) + choose(k,2)))
-    decreaseLineageProb <- choose(k,2) / ((k * (rho/2) * (L-1) + choose(k,2)))
+genealogicalAncestralProcessSimulator <- function(L = 200, rho = 0.002, n = 10, trajectories = 1000, failedTrajectories = 0){
+  for(i in seq(trajectories)){ # for each i simulation in trajectories
+    k <- n # init
+    genealogical.df <- data.frame(matrix(ncol = 1, nrow = 1e5))
+    # each simulation is a column, value is lineages of that simulation at time t 
+    # x is row, y is column
+    # k is # lineages
     
-    move <- sample( c(-1,1), 1, prob =  c(decreaseLineageProb, increaseLineageProb))
-    # make probability weight vector 
+    genealogical.df$simLineages[1] <- k # init k in df
+    genealogical.df$t[1] <- 0 # init time in df
+    genealogical.df <- select(genealogical.df,t, simLineages)
+    j <- 2
+    # init where we start filling rows == row 2 bc row 1 has init values for the simulation
     
-    k <- genealogical.df$simLineages[j] <- k + move
-    # update number of lineages at time i, use sample from distribution of probs of lineage increasing/decreasing to adjust k by +/- 1
-    # this value is the new k as well as row value for this lineage column 
-    # prob of decreasing is typically higher 
+    oldTime <- 0
+    # print(i) testing
     
-    rate = k * ((rho/2) * (L-1)) + choose(k,2) 
-    # rate updates each loop with new k at each t
+    while( k != 1 ){
+      # print('in while') testing
+      increaseLineageProb <- k * (rho/2) * (L-1) / ((k * (rho/2) * (L-1) + choose(k,2)))
+      decreaseLineageProb <- choose(k,2) / ((k * (rho/2) * (L-1) + choose(k,2)))
+      
+      move <- sample( c(-1,1), 1, prob =  c(decreaseLineageProb, increaseLineageProb))
+      # make probability weight vector 
+      
+      k <- genealogical.df$simLineages[j] <- k + move
+      # update number of lineages at time i, use sample from distribution of probs of lineage increasing/decreasing to adjust k by +/- 1
+      # this value is the new k as well as row value for this lineage column 
+      # prob of decreasing is typically higher 
+      
+      rate = k * ((rho/2) * (L-1)) + choose(k,2) 
+      # rate updates each loop with new k at each t
+      
+      time <- rexp(1, rate)
+      # rate of time, exponentially distributed
+      # ATTN: this is how t increases (very slowly), so simulations typically do not reach t > 20 before k == 1
+      # This is based on my understanding of the problem, 
+        # I believe if t increased more rapidly then there would be fewer simulations that reach k == 1 while t < 20
+      
+      newTime <- time + oldTime
+      genealogical.df$t[j] <- newTime
+      # update which row we are on, update time value with current time
+      
+      oldTime <- newTime
+      j <- j+1 # j is simply the row containing our time t, is not the t == 20 we need to check for
+    }
+    failedSimulation <- filter(genealogical.df, simLineages, simLineages == 1)
+    # once k == 1, check what time the simulated pop went to 1 at
     
-    time <- rexp(1, rate)
-    # rate of time, exponentially distributed
-    # ATTN: this is how t increases (very slowly), so simulations typically do not reach t > 20 before k == 1
-    # This is based on my understanding of the problem, 
-      # I believe if t increased more rapidly then there would be fewer simulations that reach k == 1 while t < 20
-    
-    newTime <- time + oldTime
-    genealogical.df$t[j] <- newTime
-    # update which row we are on, update time value with current time
-    
-    oldTime <- newTime
-    j <- j+1 # j is simply the row containing our time t, is not the t == 20 we need to check for
+    if(failedSimulation$t[1] < 20) { # critical to 
+      failedTrajectories <- failedTrajectories + 1
+    }
   }
-  failedSimulation <- filter(genealogical.df, simLineages, simLineages == 1)
-  # once k == 1, check what time the simulated pop went to 1 at
-  
-  if(failedSimulation$t[1] < 20) { # critical to 
-    failedTrajectories <- failedTrajectories + 1
-  }
+  cat(failedTrajectories,'trajectories reach k == 1 before t == 20') 
 }
-cat(failedTrajectories,'trajectories reach k == 1 before t == 20') 
+
+genealogicalAncestralProcessSimulator()
 ```
 
 ## 4 
