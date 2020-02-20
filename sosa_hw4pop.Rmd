@@ -1,0 +1,54 @@
+---
+title: "HW4 Pop"
+author: "Dylan Sosa"
+date: "2/11/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library('tidyverse')
+```
+
+
+# 3 
+```{r}
+risingFactorial <- function(theta, n){
+  prod(seq(theta, theta + n-1))
+  # rising factorial as defined in Pset
+}
+
+computeP <- function(theta, n, a){
+  product <- 1
+  for(i in 1:n){
+    product <- product * ((theta/i)**a[i])* 1/factorial(a[i])
+    # calculating product
+  }
+  P_theta_n <- (factorial(n)/risingFactorial(theta, n)) * product
+  # calculating n!/theta!^ * product
+}
+
+probability1 <- computeP(2, 4, c(2,1,0,0))
+probability2 <- computeP(1, 4, c(2,1,0,0))
+
+## b
+cat('Mutation rate theta = 4 has probability:',probability1,', making it more likely to be the true mutation rate underlying this data than theta = 2 which had probability:',probability2)
+```
+
+# 4
+```{r}
+setwd('/Users/dylansosa/Documents/UChicago/Academics/Winter Quarter 2020/Pop Gen/HW/hw4/')
+etaN <- read_tsv('exampleSFS.txt',col_names =  paste('eta', 1:169, sep = ''))
+chrSegment <- 30e6
+
+thetaFL <- as.numeric(etaN[1])/chrSegment
+cat('theta_FL is:',thetaFL)
+
+thetaW <- sum(etaN) / sum(1/seq(1,length(etaN))) / chrSegment
+cat('\ntheta_w is:',thetaW)
+
+thetaPi <- 2*sum(unlist(sapply(2:length(etaN), function(x) x*etaN[x]*(170-x))))/(170*169)/chrSegment
+cat('\ntheta_pi is:',thetaPi)
+```

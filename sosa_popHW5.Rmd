@@ -1,0 +1,170 @@
+---
+title: "Pop Gen HW5"
+author: "Dylan Sosa"
+date: "2/18/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+## 1 
+## a
+With $N_0 = 10,000$ \newline
+The size of the present population is: 10,000 \newline
+Size of population before bottlneck: $N_0*10 = 100,000$ \newline
+Bottleneck occured $0.05*2N$ generations ago
+
+## b
+Compute the cumulative coalescent rate function:
+$$\Lambda(t) := \int^{t}_{s=0} \frac{1}{f(s)}ds$$
+while $t \geq$ 0.05:
+$$\Lambda(t) := \int^{t}_{s=0} \frac{1}{f(s)}ds$$
+$$= \int^{t=0.05}_{s=0}ds + \int^{t}_{s=0.05} \frac{1}{10}ds$$
+$$= s|^{0.05}_{0} + \frac{s}{10}|^{t}_{0.05}$$
+$$0.05 + \frac{t}{10} - 0.005$$
+$$= \frac{t}{10}+0.045$$
+while $t \leq$ 0.05:
+$$\Lambda(t) := \int^{t}_{s=0} \frac{1}{f(s)}ds$$
+$$=\int^{t}_{s=0}ds$$
+$$=t$$
+## c 
+\newline Compute the expected value:
+$$\mathop{\mathbb{E}}[T^{(k)}_{k}] =\int^{\infty}_{t=0}\mathop{\mathbb{P}}\{T^{(k)}_{k}>t\}dt$$
+Substitue $e^{-\binom{k}{t}\Lambda(t)}$ for $\mathop{\mathbb{P}}\{T^{(k)}_{k}>t\}$
+
+Which gives:
+$$= \int^{\infty}_{t=0}e^{-\binom{k}{t}\Lambda(t)}dt$$
+$$=\int^{\infty}_{t=0}e^{-\frac{k(k-1)}{2}*\frac{1}{200}*(20t+9)}dt$$
+$$=\int^{\infty}_{t=0}e^{-\frac{k(k-1)}{400}*(20t+9)}dt$$
+$$=e^{\frac{9k(k-1)}{400}}\int^{\infty}_{t=0}e^{\frac{9k(k-1)}{20}t}dt$$
+
+$$=-e^{\frac{9k(k-1)}{400}}*\frac{20}{k(k-1)}*[e^{-\frac{20k(k-1)}{400}}t]^{\infty}_{0}$$
+$$=\frac{20}{k(k-1)}*e^{-\frac{9k(k-1)}{400}}$$
+$$=\mathop{\mathbb{E}}[T^{(k)}_{k}]$$
+$$\square$$
+
+![Computing LD](/Users/dylansosa/Documents/UChicago/Academics/Winter Quarter 2020/Pop Gen/HW/HW5/q2_pop_hw5.png)
+
+
+## 3
+## Genealogical Ancestral Process Simulator
+```{r}
+failedTrajectories <- 0
+# Based on problem: init trajecotries that reach k == 1 before t == 20
+trajectories <- 1000
+L <- 200
+rho <- 0.002
+n = 10
+
+set.seed(420)
+# for rexp()
+
+for(i in seq(trajectories)){ # for each i simulation in trajectories
+  k <- n # init
+  genealogical.df <- data.frame(matrix(ncol = 1, nrow = 1e5))
+  # each simulation is a column, value is lineages of that simulation at time t 
+  # x is row, y is column
+  # k is # lineages
+  
+  genealogical.df$simLineages[1] <- k # init k in df
+  genealogical.df$t[1] <- 0 # init time in df
+  genealogical.df <- select(genealogical.df,t, simLineages)
+  j <- 2
+  # init where we start filling rows == row 2 bc row 1 has init values for the simulation
+  
+  oldTime <- 0
+  # print(i) testing
+  
+  while( k != 1 ){
+    # print('in while') testing
+    increaseLineageProb <- k * (rho/2) * (L-1) / ((k * (rho/2) * (L-1) + choose(k,2)))
+    decreaseLineageProb <- choose(k,2) / ((k * (rho/2) * (L-1) + choose(k,2)))
+    
+    move <- sample( c(-1,1), 1, prob =  c(decreaseLineageProb, increaseLineageProb))
+    # make probability weight vector 
+    
+    k <- genealogical.df$simLineages[j] <- k + move
+    # update number of lineages at time i, use sample from distribution of probs of lineage increasing/decreasing to adjust k by +/- 1
+    # this value is the new k as well as row value for this lineage column 
+    # prob of decreasing is typically higher 
+    
+    rate = k * ((rho/2) * (L-1)) + choose(k,2) 
+    # rate updates each loop with new k at each t
+    
+    time <- rexp(1, rate)
+    # rate of time, exponentially distributed
+    # ATTN: this is how t increases (very slowly), so simulations typically do not reach t > 20 before k == 1
+    # This is based on my understanding of the problem, 
+      # I believe if t increased more rapidly then there would be fewer simulations that reach k == 1 while t < 20
+    
+    newTime <- time + oldTime
+    genealogical.df$t[j] <- newTime
+    # update which row we are on, update time value with current time
+    
+    oldTime <- newTime
+    j <- j+1 # j is simply the row containing our time t, is not the t == 20 we need to check for
+  }
+  failedSimulation <- filter(genealogical.df, simLineages, simLineages == 1)
+  # once k == 1, check what time the simulated pop went to 1 at
+  
+  if(failedSimulation$t[1] < 20) { # critical to 
+    failedTrajectories <- failedTrajectories + 1
+  }
+}
+cat(failedTrajectories,'trajectories reach k == 1 before t == 20') 
+```
+
+## 4 
+## a
+```{r}
+rho <- seq(0,50)
+sigmaSquared <- (rho + 10)/(rho**2 + 13*rho + 22)
+
+ggplot() +
+  geom_line(aes(rho, sigmaSquared))
+
+rho0 <- sigmaSquared[1]
+
+cat('sigmaSquared for rho = 0 is:',rho0)
+cat('\n5% of rho at 0 is:',rho0*0.05)
+
+```
+
+## b
+## Calculate the (positive) rho for which sigmaSquared == 5% of its value at rho == 0
+Setting $\sigma^2_d == rho0$, solving for $\rho$
+$$0.02272727 = \frac{\rho + 10}{\rho^2 + 13\rho + 22}$$
+
+$$0.02272727\rho^2 + 0.29545451\rho + 0.49999994 = \rho + 10$$
+Solve for $\rho$, obtain quadratic equation
+$$0.02272727\rho^2 - 0.7045455\rho - 9.50000006 = \rho$$
+Solve quadratic equation:
+```{r}
+a <- 0.02272727
+b <- -0.7045455
+c <- -9.50000006
+
+root <- ((-b) + sqrt(b**2 - (4*(a*c))))/(2*a)
+
+cat('Positive rho value for which sigma**2 == 5% of its value at rho == 0:', root)
+
+
+```
+
+## c 
+$$\rho = 4N_er$$
+$$N_e = 10,000$$
+$$r = 1.25 * 10^{-8}$$
+Base-pairs that correspond to the $\rho$ obtained from solving the quadratic equation:
+$$bp = \frac{\rho}{4N_er}$$   
+
+```{r}
+bp = root/(4*1e4*1.25*(10**-8))
+cat('This rho corresponds to:',bp,'bp.')
+```
+
